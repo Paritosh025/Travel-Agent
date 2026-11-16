@@ -2,10 +2,33 @@ import os
 import certifi
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
 os.environ["SSL_CERT_FILE"] = certifi.where()
 os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
+
+# Configure tracing before importing LangChain/LangGraph so every client and
+# graph created by this module receives the same settings.
+tracing_enabled = os.getenv("LANGSMITH_TRACING", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+if tracing_enabled:
+    os.environ["LANGSMITH_TRACING"] = "true"
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    langsmith_project = (
+        os.getenv("LANGSMITH_PROJECT")
+        or os.getenv("LANGCHAIN_PROJECT")
+        or "travel-agent"
+    )
+    os.environ["LANGSMITH_PROJECT"] = langsmith_project
+    os.environ["LANGCHAIN_PROJECT"] = langsmith_project
+else:
+    os.environ["LANGSMITH_TRACING"] = "false"
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"
 
 from typing import TypedDict, Annotated
 import operator
@@ -41,12 +64,6 @@ def get_database_url():
 
     return database_url
 
-
-# LangSmith is optional. Opt in explicitly so failed telemetry cannot affect
-# normal travel requests.
-if os.getenv("TRAVEL_AGENT_ENABLE_TRACING", "false").lower() != "true":
-    os.environ["LANGSMITH_TRACING"] = "false"
-    os.environ["LANGCHAIN_TRACING_V2"] = "false"
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
